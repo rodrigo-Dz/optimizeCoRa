@@ -9,7 +9,7 @@ module mm
 	using ParameterizedFunctions
 
     # ODE system with feedback
-    function ode_system!(du, u, p, t)
+    function FB(du, u, p, t)
         Y, U, W, C = u
         g, mY, gY, mU, gU, mW, gW, e0, eP, eM, mUs = p
     
@@ -20,7 +20,7 @@ module mm
     end
     
 	# ODE system without feedback
-    function ode_systemNF!(du, u, p, t)
+    function nFB(du, u, p, t)
         Y, U, W, C = u
         g, mY, gY, mU, gU, mW, gW, e0, eP, eM, mUs = p
     

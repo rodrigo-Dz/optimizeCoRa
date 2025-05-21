@@ -77,117 +77,128 @@ module fn
     end;
 
 
-    function explore_all(system_FB, system_nFB, p, pert, opt, ran, u0, mm)
-        #n_points, a, b, n_params, u0,  tspan,  solver, eps)
-        results = []
-        p_ori = copy(p)
+    function explore_all(iARG, mm, p, pert, opt, u0)
+        ran = 10 .^ range(pert.r[1], pert.r[2], length=pert.coras)
 
-        # Set of parameters    
-        sobol_p = SobolSeq(opt.n_params)
-        sobol_p = [10.0 .^ (opt.pMin .+ (opt.pMax - opt.pMin) .* next!(sobol_p)) for _ in 1:opt.n_points]
-
-        for i in 1:opt.n_points
-            p = copy(p_ori)
-            for j in 1:opt.n_params
-                p[opt.pOp[j]] = sobol_p[i][j];
+        open(string("./output/OUT_OptCoRa_",iARG.mm,"_",iARG.ex,"_",iARG.pp,"_",iARG.ax,".txt"), "w") do io
+            if (opt.prtD==1)
+                    writedlm(io, [vcat([string(param) for param in opt.pOp],string("|CoRa<=",pert.eps,"|"),"min(CoRA)", "steady_state","oscilations", "other_errors", ran)], '\t')
+            else
+                    writedlm(io, [vcat([string(param) for param in opt.pOp],string("|CoRa<=",pert.eps,"|"),"min(CoRa)", "steady_state","oscilations", "other_errors")], '\t')
             end
+            #n_points, a, b, n_params, u0,  tspan,  solver, eps)
+            results = []
+            p_ori = copy(p)
 
-            curve = zeros(length(ran))
-            SSs = zeros(length(ran))
-            next_ic = u0
-            for j in 1:length(ran)
-                p[pert.c] = ran[j]
-                copy_p = copy(p)  
+            # Set of parameters    
+            sobol = SobolSeq(opt.n_params)
+            sobol_p = [
+                    10.0 .^ (opt.pMin .+ (opt.pMax .- opt.pMin) .* next!(sobol))
+                    for _ in 1:opt.n_points
+                ]
 
-                # SS FB system
-                if opt.solver == "fast"
-                    SS = fn.find_equilibrium(p, next_ic, system_FB)
-                    FB = mm.outFB_fast(SS)
-                    println(FB)
-                else
-                    SS = fn.solve_to_steady_state(p, next_ic, system_FB, opt.tspan)
-                    FB = mm.outFB_slow(SS)
+            for i in 1:opt.n_points
+                p = copy(p_ori)
+                for j in 1:opt.n_params
+                    p[opt.pOp[j]] = sobol_p[i][j];
                 end
 
-                next_ic = SS
+                curve = zeros(length(ran))
+                SSs = zeros(length(ran))
+                next_ic = u0
+                for j in 1:length(ran)
+                    p[pert.c] = ran[j]
+                    copy_p = copy(p)  
 
-                p = copy(copy_p)
-                mm.localNF(p,SS)
-
-                if opt.solver == "fast"
-                    SS_nFB = fn.find_equilibrium(p, next_ic, system_nFB)
-                    nFB = mm.out_nFB_fast(SS_nFB)
-                else
-                    SS_nFB = fn.solve_to_steady_state(p, next_ic, system_FB, opt.tspan)
-                    nFB = mm.out_nFB_slow(SS_nFB)
-                end
-
-                if (abs(FB - nFB)/ max(abs(FB),abs(nFB))) < 0.0001
-                    p = copy(copy_p)
-                    p[pert.p] = p[pert.p]*pert.d
-                    
+                    # SS FB system
                     if opt.solver == "fast"
-                        SS_FBp = fn.find_equilibrium(p, next_ic, system_FB)
-                        FB_p = mm.out_nFB_fast(SS_FBp)
+                        SS = fn.find_equilibrium(p, next_ic, mm.FB)
+                        FB = mm.outFB_fast(SS)
+                        println(FB)
                     else
-                        SS_FBp = solve_to_steady_state(p, next_ic, system_FB, opt.tspan)
-                        FB_p = mm.out_nFB_slow(SS_FBp)
+                        SS = fn.solve_to_steady_state(p, next_ic, mm.FB, opt.tspan)
+                        FB = mm.outFB_slow(SS)
                     end
 
+                    next_ic = SS
+
                     p = copy(copy_p)
-                    p[pert.p] = p[pert.p]*pert.d
                     mm.localNF(p,SS)
 
-
                     if opt.solver == "fast"
-                        SS_nFBp = fn.find_equilibrium(p, next_ic, system_nFB)
-                        nFB_p = mm.out_nFB_fast(SS_nFBp)
+                        SS_nFB = fn.find_equilibrium(p, next_ic, mm.nFB)
+                        nFB = mm.out_nFB_fast(SS_nFB)
                     else
-                        SS_nFBp = fn.solve_to_steady_state(p, next_ic, system_nFB, opt.tspan)
-                        nFB_p = mm.out_nFB_slow(SS_nFBp)
+                        SS_nFB = fn.solve_to_steady_state(p, next_ic, mm.nFB, opt.tspan)
+                        nFB = mm.out_nFB_slow(SS_nFB)
                     end
 
-                    if (FB_p < 0) || (FB<0) || (nFB_p<0) || (nFB<0)
-                        println("error en uno de estos:", FB, FB_p, nFB_p, nFB)
-                        curve[j] = NaN
-                        SSs[j] = NaN
+                    if (abs(FB - nFB)/ max(abs(FB),abs(nFB))) < 0.0001
+                        p = copy(copy_p)
+                        p[pert.p] = p[pert.p]*pert.d
+                        
+                        if opt.solver == "fast"
+                            SS_FBp = fn.find_equilibrium(p, next_ic, mm.FB)
+                            FB_p = mm.out_nFB_fast(SS_FBp)
+                        else
+                            SS_FBp = solve_to_steady_state(p, next_ic, mm.FB, opt.tspan)
+                            FB_p = mm.out_nFB_slow(SS_FBp)
+                        end
+
+                        p = copy(copy_p)
+                        p[pert.p] = p[pert.p]*pert.d
+                        mm.localNF(p,SS)
+
+
+                        if opt.solver == "fast"
+                            SS_nFBp = fn.find_equilibrium(p, next_ic, mm.nFB)
+                            nFB_p = mm.out_nFB_fast(SS_nFBp)
+                        else
+                            SS_nFBp = fn.solve_to_steady_state(p, next_ic, mm.nFB, opt.tspan)
+                            nFB_p = mm.out_nFB_slow(SS_nFBp)
+                        end
+
+                        if (FB_p < 0) || (FB<0) || (nFB_p<0) || (nFB<0)
+                            println("error en uno de estos:", FB, FB_p, nFB_p, nFB)
+                            curve[j] = NaN
+                            SSs[j] = NaN
+                        else
+                            curve[j] = log10(FB_p/FB) / log10(nFB_p/nFB)
+                            SSs[j] = FB
+                        end
+                    
                     else
-                        curve[j] = log10(FB_p/FB) / log10(nFB_p/nFB)
-                        SSs[j] = FB
-                    end
+                        J = fn.compute_jacobian(SS, p, system_FB)
+                        eigenvalues = eigvals(J)  # Calcular autovalores
+                        has_oscilations = any(imag(l) != 0 && real(l) > 0 for l in eigenvalues) # Eigenvalues complejos con parte real positiva
+                        if has_oscilations == true
+                            curve[j] = 2  
+                            SSs[j] = NaN 
+                            println("oscila")
+                        else
+                            println("No oscila pero pasa algo raro, intenta con otro solver")  # Todo lo demás
+                            curve[j] = 3  #mark other type of erros
+                            SSs[j] = NaN
+                        end     
+
+                    end            
+                end  
+                rob = count(x -> x < pert.eps, curve) #robustness: number of points below 0.1
+                os = count(x -> x == 2, curve)        #oscillations: number of points with oscillations
+                other = count(x -> x == 3, curve)   #other: number of points with other errors
+
+                min = minimum(curve) #min CoRa
+                indices = curve .< pert.eps  # Condición para filtrar valores en 'a' menores a 0.1
+                filtered_SSs = SSs[indices]
+                ss = mean(filtered_SSs)      # ss for the values below 0.1
                 
-                else
-                    J = fn.compute_jacobian(SS, p, system_FB)
-                    eigenvalues = eigvals(J)  # Calcular autovalores
-                    has_oscilations = any(imag(l) != 0 && real(l) > 0 for l in eigenvalues) # Eigenvalues complejos con parte real positiva
-                    if has_oscilations == true
-                        curve[j] = 2  
-                        SSs[j] = NaN 
-                        println("oscila")
-                    else
-                        println("No oscila pero pasa algo raro, intenta con otro solver")  # Todo lo demás
-                        curve[j] = 3  #mark other type of erros
-                        SSs[j] = NaN
-                    end     
-
-                end            
-            end  
-            rob = count(x -> x < pert.eps, curve) 
-            os = count(x -> x == 2, curve)
-
-            indices = curve .< pert.eps  # Condición para filtrar valores en 'a' menores a 0.1
-            # Obtener los valores filtrados de 'b'
-            filtered_SSs = SSs[indices]
-            ss = mean(filtered_SSs)
-
-            push!(results,  vcat(collect(values(p)), rob , os, ss))
+                if (opt.prtD==1)	# If printing full CoRa curve specified:
+                    writedlm(io, [vcat(sobol_p[i], rob, min ,ss, os, other, curve)],'\t')
+                else			# Else:
+                    writedlm(io, [vcat(sobol_p[i], rob, min ,ss, os, other, curve)],'\t')
+                end
+            end
         end
-
-        # Convertir results a una matriz
-        results_matrix = reduce(vcat, transpose.(results))
-        # Guardar los resultados en un archivo CSV
-        writedlm("results_ATFv1.csv", results_matrix, ',')
-
     end
 
 end
