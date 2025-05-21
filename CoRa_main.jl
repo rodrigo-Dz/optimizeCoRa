@@ -44,7 +44,7 @@ include(string("InputFiles/ARGS_",iARG.mm,"_Par.jl"))
 
 
 # range to explore
-ran = 10 .^ range(-3, 3, length=pert.coras) 
+ran = 10 .^ range(pert.r[1], pert.r[2], length=pert.coras) 
 
 holi
 
