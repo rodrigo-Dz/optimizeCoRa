@@ -5,33 +5,32 @@ library(readr)
 library(scales)
 library(corrplot)
 library(geometry)
+library(viridisLite)  # para escala de colores
 
-# Crear la paleta de colores viridis para eps
-num_CoRas <- 50  # Número de colores en la paleta
-viridis_colors <- viridis_pal()(num_CoRas)
+### EXPLORATION ###
+curves <- read_tsv("./output/OUT_ExplCoRa_ATFv1_p02_Fig1_mY_mY.txt", col_names = TRUE)
 
-### ATF v1
-curves <- read_tsv("./output/OUT_OptCoRa_ATFv1_Fig1_mY_mY.txt", col_names = TRUE)
-
-# Asignar colores: rojo si os == 1, de la paleta viridis si no
-curves$color <- ifelse(curves$oscilations > 0, "purple", viridis_colors[cut(curves$`|CoRa<=0.1|`, breaks = num_CoRas, labels = FALSE)])
+cont_colors <- viridis(100)[as.numeric(cut(curves$`proportion<=eps`, breaks = 100))]
+final_colors <- ifelse(curves$oscilations > 0, "purple", cont_colors)
+curves$color <- final_colors
 
 plot_ly(curves, x = ~mU, y = ~mW, z = ~eP, 
-        marker = list(size = 8),
-        type = "scatter3d", mode = "markers",
-        color = I(curves$color)) %>%  # I() para indicar que ya es un color definido
+        marker = list(size = 8, color = curves$color),
+        type = "scatter3d", mode = "markers") %>%
   layout(scene = list(
-    xaxis = list(title = "mU",  type = "log"),
-    yaxis = list(title = "mW",  type = "log"),
-    zaxis = list(title = "eP",  type = "log")
+    xaxis = list(title = "mU", type = "log"),
+    yaxis = list(title = "mW", type = "log"),
+    zaxis = list(title = "eP", type = "log")
   ))
 
-curves <- curves %>% filter(curves$`|CoRa<=0.1|` == num_CoRas)
+
+#### OPTIMIZATION ###
+curves <- read_tsv("./output/OUT_OptCoRa_ATFv1_Fig1_mY_mY.txt", col_names = TRUE)
 
 p <- plot_ly(curves, x = ~mU, y = ~mW, z = ~eP, 
              marker = list(size = 5),
              type = "scatter3d", mode = "markers",
-             color = I(curves$color)) %>%  # I() para indicar que ya es un color definido
+             color = curves$`proportion<=eps`) %>%  # I() para indicar que ya es un color definido
   layout(scene = list(
     xaxis = list(title = "mU", type = "log", range = c(-3, 3)),
     yaxis = list(title = "mW", type = "log", range = c(-3, 3)),
