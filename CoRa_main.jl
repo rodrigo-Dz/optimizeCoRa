@@ -28,13 +28,15 @@ pert = (p   = iARG.pp,	# Parameter to be perturbed
         solver = "fast",        # Solover to use ("fast", or "slow" (more precise))
         tspan = (0.0, 1e8));        
 
+# Edit the analysis you want:
+
 # exploration details
 expl  = (n_params = 3,
         pOp  = [:mU,:mW,:eP],	# Parameters to optimize
         pMin = [-3.0, -2.0, -1.0],           # Mínimo log10 para cada uno
         pMax = [3.0,  2.0,  1.0],            # Máximo log10 para cada uno      
         n_points = 2048,           # number of points to evaluate
-        prtD =1);		# flag for printing full DY curve  
+        prtD =1);		# flag for printing full DY curve 
 
 # Optimization details
 opt  = (n_params = 3,
@@ -53,8 +55,7 @@ opt  = (n_params = 3,
 mm = include(string("Library/Md_",iARG.mm,".jl"));
 
 # Initial Conditions
-u0 = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]  # Y, U, W, C
-
+u0 = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0] 
 
 # Core parameters
 include(string("InputFiles/ARGS_",iARG.mm,"_",iARG.ex,"_Par.jl"))
