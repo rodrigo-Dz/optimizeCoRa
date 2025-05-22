@@ -28,8 +28,6 @@ pert = (p   = iARG.pp,	        # Parameter to be perturbed
         solver = "fast",        # Solover to use ("fast", or "slow" (more precise))
         tspan = (0.0, 1e8));    # tspan for slow solver    
 
-# Edit the analysis you want:
-
 # exploration details
 expl  = (n_params = 3,
         pOp  = [:mU,:mW,:eP],	        # Parameters to optimize
