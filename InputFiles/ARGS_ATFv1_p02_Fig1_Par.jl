@@ -1,6 +1,5 @@
 using DataStructures
 
-# Diccionario ordenado
 p = OrderedDict(
     :g   => 0.01,      # Dilution rate (e.g. [0.01,0.24] 1/min)
     :mY  => 0.125,     # Y maximum synthesis rate dependent of Y1 (nM/min)
@@ -18,3 +17,6 @@ p = OrderedDict(
 	:k1  => 1.0,       # Activation threshold for Y1 synthesis dependent of Y0 (nM)
     :mUs => NaN, 
 )
+
+# Initial conditions
+u0 = [10000.0, 10000.0, 10000.0, 10000.0, 10000.0, 10000.0]     # Initial conditions for the ODE system

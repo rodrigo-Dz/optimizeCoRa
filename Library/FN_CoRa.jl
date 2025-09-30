@@ -1,3 +1,9 @@
+
+# --- Main functions for CoRa analysis
+# --- Rodrigo Aguilar
+# --- September 2025
+
+
 module fn
 	# Required libraries
 	using DelimitedFiles
@@ -10,36 +16,20 @@ module fn
 	using LinearAlgebra
     using Statistics
     using ParameterizedFunctions
+    using Plots
 
 
+    #--- Solve for equilibrium (fast) ---
+    # p ------ Set of parameters
+    # u0 ----- Initial conditions
+    # system - set of ODEs
+    # Returns: vector with equilibrium points
 
-        # Solve 
-    function solve_to_steady_state(system!, u0, p, tspan)
-        p_values = collect(values(p))
-        prob = ODEProblem(system!, u0, tspan, p_values)
-
-        sol = solve(prob, Rodas5(), reltol=1e-8, abstol=1e-8)  # Usar un solver robusto
-
-        # Verificar si el sistema alcanzó el estado estacionario
-        du = similar(u0)
-        system!(du, sol.u[end], p_values, sol.t[end])
-        if maximum(abs.(du)) < 1e-6
-            #println("El sistema alcanzó el estado estacionario.")
-            return sol
-        else
-            println(" no ss")
-            return 0.0
-        end
-
-        
-    end
-
-    # Encontrar puntos de equilibrio para el primer sistema
-    function find_equilibrium(p, u0, system!)
-        p_values = collect(values(p))
+    function find_equilibrium(p, u0, system)
+        par = collect(values(p))
         function equilibrium_condition(u)
             du = similar(u)
-            system!(du, u, p_values, 0.0)
+            system(du, u, par, 0.0)
             return du
         end
         result = nlsolve(equilibrium_condition, u0, autodiff=:forward)
@@ -47,12 +37,40 @@ module fn
     end
 
 
-    # Calcular el Jacobiano en un punto de equilibrio
-    function compute_jacobian(u_eq, p, system!)
+    #=
+    #--- Solve for equilibrium (slow) ---
+    # p ------ Set of parameters
+    # u0 ----- Initial conditions
+    # system - set of ODEs
+    # Returns: vector with equilibrium points 
+
+    function solve_to_steady_state(p, u0, system, u0, p, tspan)
+        p_values = collect(values(p))
+        prob = ODEProblem(system!, u0, tspan, p_values)
+        sol = solve(prob, Rodas5(), reltol=1e-8, abstol=1e-8)  # Usar un solver robusto
+        # Verificar si el sistema alcanzó el estado estacionario
+        du = similar(u0)
+        system!(du, sol.u[end], p_values, sol.t[end])
+        if maximum(abs.(du)) < 1e-6
+            #println("El sistema alcanzó el estado estacionario.")
+            return sol.u[end]
+        else
+            println("no ss")
+            return 0.0
+        end
+    end
+    =#
+
+    # Calculate Jacobian matrix
+    # u_eq - Equilibrium point
+    # p - Set of parameters
+    # system - set of ODEs
+
+    function compute_jacobian(u_eq, p, system)
         p_values = collect(values(p))
         function equilibrium_condition(u)
             du = similar(u)
-            system!(du, u, p_values, 0.0)
+            system(du, u, p_values, 0.0)
             return du
         end
         ForwardDiff.jacobian(equilibrium_condition, u_eq)
@@ -78,80 +96,114 @@ module fn
     end;
 
 
-    function evalCoRa(p, u0, mm, pert)
-        copy_p = copy(p)
-        # SS FB system
-        if pert.solver == "fast"
-            SS = fn.find_equilibrium(p, u0, mm.FB)
+    function solver(type, p, u0, mm,  model, pert)
+        if type == "fast"
+            SS = fn.find_equilibrium(p, u0, model)
             FB = mm.outFB_fast(SS)
         else
-            SS = fn.solve_to_steady_state(p, u0, mm.FB, pert.tspan)
+            SS = fn.solve_to_steady_state(model, u0, p, pert.tspan)
             FB = mm.outFB_slow(SS)
         end
+        return SS, FB
+    end
 
-        p = copy(copy_p)
-        mm.localNF(p,SS)
+    # Evaluate CoRa
+    # p -- System parameters
+    # u0 -- Initial conditions
+    # mm -- Model structure with functions for feedback and no feedback systems
+    # pert -- Perturbation structure
+    # Returns: 
+    #    CoRa value, 
+    #    steady state of controlled system, 
+    #    steady state of controlled system before perturbation
 
-        # SS NF system
-        if pert.solver == "fast"
-            SS_nFB = fn.find_equilibrium(p, SS, mm.nFB)
-            nFB = mm.out_nFB_fast(SS_nFB)
-        else
-            SS_nFB = fn.solve_to_steady_state(p, SS, mm.nFB, pert.tspan)
-            nFB = mm.out_nFB_slow(SS_nFB)
-        end
+    function evalCoRa(p, u0, mm, pert)
+        copy_p = copy(p)
 
-        if (abs(FB - nFB)/ max(abs(FB),abs(nFB))) < 0.0001
-            p = copy(copy_p)
-            p[pert.p] = p[pert.p]*pert.d
-            
-            if pert.solver == "fast"
-                SS_FBp = fn.find_equilibrium(p, SS, mm.FB)
-                FB_p = mm.out_nFB_fast(SS_FBp)
-            else
-                SS_FBp = solve_to_steady_state(p, SS, mm.FB, pert.tspan)
-                FB_p = mm.out_nFB_slow(SS_FBp)
-            end
-
-            p = copy(copy_p)
-            p[pert.p] = p[pert.p]*pert.d
-            mm.localNF(p,SS)
-
-
-            if pert.solver == "fast"
-                SS_nFBp = fn.find_equilibrium(p, SS, mm.nFB)
-                nFB_p = mm.out_nFB_fast(SS_nFBp)
-            else
-                SS_nFBp = fn.solve_to_steady_state(p, SS, mm.nFB, pert.tspan)
-                nFB_p = mm.out_nFB_slow(SS_nFBp)
-            end
-
-            if (FB_p < 0) || (FB<0) || (nFB_p<0) || (nFB<0)
-                println("error en uno de estos:", FB, FB_p, nFB_p, nFB)
-                CoRa  = NaN
-                SS_controled = NaN
-            else
-                CoRa = log10(FB_p/FB) / log10(nFB_p/nFB)
-                SS_controled = FB
-            end
-        
-        else
-            J = fn.compute_jacobian(SS, p, mm.FB)
-            eigenvalues = eigvals(J)  # Calcular autovalores
-            has_oscilations = any(imag(l) != 0 && real(l) > 0 for l in eigenvalues) # Eigenvalues complejos con parte real positiva
-            if has_oscilations == true
-                CoRa = 2  
-                SS_controled = NaN 
-                println("oscila")
-            else
-                println("No oscila pero pasa algo raro, intenta con otro solver")  # Todo lo demás
+        # Solve Feedback system
+        SS, FB = solver(pert.solver, p, u0, mm, mm.FB, pert)
+        println("FB = ", FB)
+        # Check for positive solution
+        if any(x -> x < 0, SS)
+            println("negative values in SS")
+            CoRa  = 3
+            SS_controled = NaN
+            #=
+            try
+                SS, FB = solver("slow", copy_p, SS, mm, mm.FB, pert)
+                if any(x -> x < 0, SS)
+                    println("still negative values in SS")
+                    CoRa = 3  #mark other type of erros
+                    SS_controled = NaN
+                else
+                    CoRa = 2  #mark other type of erros
+                    SS_controled = NaN
+                end
+            catch e
+                println("error with slow solver", e)
                 CoRa = 3  #mark other type of erros
                 SS_controled = NaN
-            end     
+            end
+            =#
+        else
+            p = copy(copy_p)
+            # Calculate new parameters for no feedback system
+            mm.localNF(p,SS)
 
-        end 
+            # Solve NF system
 
-        return CoRa, SS, SS_controled
+            SS_nFB, nFB = solver(pert.solver, p, SS, mm, mm.nFB, pert)
+
+            println("nFB = ", nFB)
+
+            if (abs(FB - nFB)/ FB) < 0.0001
+                p = copy(copy_p)
+                p[pert.p] = p[pert.p]*pert.d
+                
+                SS_FBp, FB_p = solver(pert.solver, p, SS, mm, mm.FB, pert)
+
+                p = copy(copy_p)
+                p[pert.p] = p[pert.p]*pert.d
+                mm.localNF(p,SS)
+
+                SS_nFBp, nFB_p = solver(pert.solver, p, SS, mm, mm.nFB, pert)
+
+                if (FB_p <= 0) || (FB<=0) || (nFB_p<=0) || (nFB<=0)
+                    println("error en uno de estos:", FB, FB_p, nFB_p, nFB)
+                    CoRa  = 3
+                    SS_controled = NaN
+                else
+                    CoRa = log10(FB_p/FB) / log10(nFB_p/nFB)
+                    println("CoRa = ", CoRa)
+                    SS_controled = FB
+                end
+            else
+                println("FB and nFB not equal, CoRa not defined")
+                J = fn.compute_jacobian(SS, p, mm.FB)
+                eigenvalues = eigvals(J)  # Calcular autovalores
+                #has_oscilations = any(imag(l) != 0 && real(l) >= 0 for l in eigenvalues) # Eigenvalues complejos con parte real positiva
+                has_oscilations = any(imag(l) != 0  for l in eigenvalues) # Eigenvalues complejos con parte real positiva
+
+                if has_oscilations == true
+                    CoRa = 2  
+                    SS_controled = NaN 
+                    println("oscila")
+                else
+                    println("intentando con otro solver")  # Todo lo demás
+                    #SS, FB = solver("slow", copy_p, SS, mm, mm.FB, pert)
+                    #SS_nFB, nFB = solver("slow", p, SS, mm, mm.nFB, pert)
+                    #println(SS, "\n", SS_nFB)
+
+                    #SS, FB = solver("slow", copy_p, SS_nFB, mm, mm.FB, pert)
+                    #println(SS)
+                    #println((abs(FB - nFB)/ FB) < 0.0001)
+                    CoRa = 3  #mark other type of erros
+                    SS_controled = NaN
+                end     
+
+            end 
+        end
+        return CoRa, SS[:, end], SS_controled
     end
 
     function CoRacurve(p, u0, mm, pert)
@@ -165,7 +217,7 @@ module fn
             SSs[j] = CoRa_r[3]
             u0 =  CoRa_r[2]
         end  
-        return curve, SSs
+        return curve, SSs, u0
     end
 
 
@@ -191,14 +243,15 @@ module fn
 
 
 
-    function explore_all(iARG, mm, p, pert, expl, u0)
+
+    function explore(iARG, mm, p, pert, expl, u0)
         ran = 10 .^ range(pert.r[1], pert.r[2], length=pert.coras)
 
         open(string("./output/OUT_ExplCoRa_",iARG.mm,"_",iARG.ex,"_",iARG.pp,"_",iARG.ax,".txt"), "w") do io
             if (expl.prtD==1)
-                    writedlm(io, [vcat([string(param) for param in expl.pOp],"proportion<=eps","minRange", "maxRange","min(CoRa)", "optimalRho", "oscilations", "other_errors", "steady_state", ran)], '\t')
+                    writedlm(io, [vcat([string(param) for param in expl.pOp],"robustness","minRange", "maxRange","min(CoRa)", "optimalRho", "oscilations", "other_errors", "steady_state", ran)], '\t')
             else
-                    writedlm(io, [vcat([string(param) for param in expl.pOp],"proportion<=eps","minRange", "maxRange","min(CoRa)", "optimalRho", "oscilations", "other_errors", "steady_state")], '\t')
+                    writedlm(io, [vcat([string(param) for param in expl.pOp],"robustness","minRange", "maxRange","min(CoRa)", "optimalRho", "oscilations", "other_errors", "steady_state")], '\t')
             end
 
             # Set of parameters    
@@ -214,9 +267,9 @@ module fn
                 for j in 1:expl.n_params
                     p[expl.pOp[j]] = sobol_p[i][j];
                 end
+                curve, SSs, u1 = CoRacurve(p, u0, mm, pert)
 
-                curve, SSs = CoRacurve(p, u0, mm, pert)
-
+                #println(u1)
                 m = metrics(curve, SSs, pert);    # Calculate metrics of DY curve
                
                 p = copy(p_orig)
@@ -226,6 +279,7 @@ module fn
                 else			# Else:
                     writedlm(io, [vcat(sobol_p[i], m)],'\t')
                 end
+
             end
         end
     end
@@ -237,9 +291,9 @@ module fn
 
         open(string("./output/OUT_OptCoRa_",iARG.mm,"_",iARG.ex,"_",iARG.pp,"_",iARG.ax,".txt"), "w") do io
             if (opt.prtD==1)
-                    writedlm(io, [vcat("Iteration", [string(param) for param in opt.pOp],"proportion<=eps",string("|CoRa<=",pert.eps,"|"),"min(CoRA)", ran)], '\t')
+                    writedlm(io, [vcat("Iteration", [string(param) for param in opt.pOp],"robustness",string("|CoRa<=",pert.eps,"|"),"min(CoRA)", ran)], '\t')
             else
-                    writedlm(io, [vcat("Iteration", [string(param) for param in opt.pOp],"proportion<=eps",string("|CoRa<=",pert.eps,"|"),"min(CoRa)")], '\t')
+                    writedlm(io, [vcat("Iteration", [string(param) for param in opt.pOp],"robustness",string("|CoRa<=",pert.eps,"|"),"min(CoRa)")], '\t')
             end
 
             if opt.rand == 1
@@ -250,7 +304,7 @@ module fn
 
             p_copy = copy(p)
 
-            curve0, SSs0 = CoRacurve(p, u0, mm, pert)
+            curve0, SSs0, u1 = CoRacurve(p, u0, mm, pert)
             m0 = metrics(curve0, SSs0, pert);    # Calculate metrics of DY curve
 
 			op0 = log10(m0[3]/m0[2]);   # Property to optimize (e.g. DY<=eps range length)
@@ -281,6 +335,7 @@ module fn
 					r0[pI] = p[opt.pOp[pI]]; # Save previous value
 					p[opt.pOp[pI]] *= (opt.M .^ rI[pI]); # Update value
                     p[opt.pOp[pI]] = round(p[opt.pOp[pI]]; sigdigits=4)
+                    println("p[",opt.pOp[pI],"] = ", p[opt.pOp[pI]])
 					# Exclude values outside regime of exploration:
 					if p[opt.pOp[pI]] < (10.0 ^ opt.pMin[pI])
 						p[opt.pOp[pI]] = (10.0 ^ opt.pMin[pI])
@@ -289,9 +344,9 @@ module fn
 					end
 				end
                 
-                curve1, SSs1 = CoRacurve(p, u0, mm, pert)
+                curve1, SSs1, u1 = CoRacurve(p, u0, mm, pert)
                 m1 = metrics(curve1, SSs1, pert);    # Calculate metrics of DY curve
-    
+
                 op1 = log10(m1[3]/m1[2]);   # Property to optimize (e.g. DY<=eps range length)
                 mi1 = m1[4];  
 
@@ -339,5 +394,59 @@ module fn
         end
     end
 
+    function dynamics(mm, u0, p, tspan, pert, iARG)
+        p[:dyn] = 0
+        p_values = collect(values(p))
+        tspan = (0.0, 500000.0)
+        #println(evalCoRa(p, u0, mm, pert))
+
+        prob = ODEProblem(mm.FB, u0, tspan, p_values)
+
+        sol = solve(prob, Rodas5())
+
+        SS = sol[1,end]
+        println("Generating dynamics plot...", SS)
+
+		p[:miss] = sol[4,end]  
+
+
+        p[:dyn] = 1
+        p_values = collect(values(p))
+        tspan = (0.0, 10000.0)
+        prob = ODEProblem(mm.FB, sol[:,end], tspan, p_values)
+        sol = solve(prob, Rodas5())  # Usar un solver robusto
+
+        t = sol.t
+        y = sol[1, :]   # primera variable, cambia el índice si quieres otra
+        # filtrar solo los últimos tiempos
+        mask = t .>= 0
+        plot(t[mask], y[mask], xlabel="Time", ylabel="Concentration")
+
+        prob = ODEProblem(mm.nFB, sol[:,end], tspan, p_values)
+        sol = solve(prob, Rodas5())  # Usar un solver robusto
+        t = sol.t
+        y = sol[1, :]   # primera variable, cambia el índice si quieres otra
+        # filtrar solo los últimos tiempos
+        mask = t .>= 0
+        #plot!(t[mask], y[mask], xlabel="Time", ylabel="Concentration")
+
+        savefig(string("OUT_Dyn_",iARG.mm,"_",iARG.ex,"_",iARG.pp,"_",iARG.ax,".png"))
+        
+        println(evalCoRa(p, u0, mm, pert))
+
+        p[:dyn] = 0
+    end
+
+    function curve(p, u0, mm, pert, iARG)
+        ran = 10 .^ range(pert.r[1], pert.r[2], length=pert.coras)
+        curve, SSs, u1 = CoRacurve(p, u0, mm, pert)
+        plot(ran, curve;
+            xscale = :log10,
+            xlims = (minimum(ran), maximum(ran)),
+            ylims = (0, 1),
+            xlabel = "P",
+            ylabel = "CoRa")
+        savefig(string("OUT_curve_",iARG.mm,"_",iARG.ex,"_",iARG.pp,"_",iARG.ax,".png"))
+    end
 
 end
