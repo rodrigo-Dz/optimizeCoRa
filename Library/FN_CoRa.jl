@@ -157,13 +157,13 @@ module fn
 #        final steady state to use as initial condition in next run
 
     function CoRacurve(p, u0, mm, pert)
-        ran = 10 .^ range(pert.r[1], pert.r[2], length=pert.coras)
-        curve = zeros(length(ran))
-        SSs = zeros(length(ran))
-        errors = zeros(length(ran))
+        r = 10 .^ range(pert.r[1], pert.r[2], length=pert.coras)
+        curve = zeros(length(r))
+        SSs = zeros(length(r))
+        errors = zeros(length(r))
     # Iterate over perturbation range
-        for j in 1:length(ran)
-            p[pert.c] = ran[j]
+        for j in 1:length(r)
+            p[pert.c] = r[j]
             CoRa = evalCoRa(p, u0, mm, pert)
             curve[j] = CoRa[1]
             u0 =  CoRa[2]
@@ -189,15 +189,19 @@ module fn
 #       other_errors (number of points with other errors),
 #       steady_state (mean steady state of controlled variable for points with CoRa<=eps)
 
-    function metrics(curve, SSs, pert)
+    function metrics(curve, SSs, errors, pert)
+        neg = count(x -> x == 1, errors)        
+        os = count(x -> x == 2, errors)        #oscillations: number of points with oscillations
+        e = count(x -> x == 3, errors)         #other: number of points with other errors
+
         r = 10 .^ range(pert.r[1], pert.r[2], length=pert.coras)
+
 		i = curve .<= pert.eps;
 		j = findall(i);
-		x = copy(curve);
+		
+        x = copy(curve);
 		x[x .=== NaN] .= Inf;
 
-        os = count(x -> x == 2, curve)        #oscillations: number of points with oscillations
-        other = count(x -> x == 3, curve)    #other: number of points with other errors
         indices = curve .< pert.eps          # Condición para filtrar valores en 'a' menores a 0.1
         filtered_SSs = SSs[indices] 
         ss = mean(filtered_SSs)      # ss for the values below 0.1
