@@ -5,7 +5,7 @@
 
 
 module fn
-	# Required libraries
+# --- Required libraries ---
 	using DelimitedFiles
 	using Distributions
 	using DifferentialEquations
@@ -19,11 +19,12 @@ module fn
     using Plots
 
 
-    #--- Solve for equilibrium (fast) ---
-    # p ------ Set of parameters
-    # u0 ----- Initial conditions
-    # system - set of ODEs
-    # Returns: vector with equilibrium points
+#--- Solve for equilibrium (fast) ---
+#    p ------ Set of parameters
+#    u0 ----- Initial conditions
+#    system - set of ODEs
+#    Returns: 
+#       vector with equilibrium points
 
     function find_equilibrium(p, u0, system)
         par = collect(values(p))
@@ -37,34 +38,12 @@ module fn
     end
 
 
-    #=
-    #--- Solve for equilibrium (slow) ---
-    # p ------ Set of parameters
-    # u0 ----- Initial conditions
-    # system - set of ODEs
-    # Returns: vector with equilibrium points 
-
-    function solve_to_steady_state(p, u0, system, u0, p, tspan)
-        p_values = collect(values(p))
-        prob = ODEProblem(system!, u0, tspan, p_values)
-        sol = solve(prob, Rodas5(), reltol=1e-8, abstol=1e-8)  # Usar un solver robusto
-        # Verificar si el sistema alcanzó el estado estacionario
-        du = similar(u0)
-        system!(du, sol.u[end], p_values, sol.t[end])
-        if maximum(abs.(du)) < 1e-6
-            #println("El sistema alcanzó el estado estacionario.")
-            return sol.u[end]
-        else
-            println("no ss")
-            return 0.0
-        end
-    end
-    =#
-
-    # Calculate Jacobian matrix
-    # u_eq - Equilibrium point
-    # p - Set of parameters
-    # system - set of ODEs
+# --- Calculate Jacobian matrix at equilibrium ---
+#     u_eq --- Equilibrium point
+#     p ------ Set of parameters
+#     system - set of ODEs
+#     Returns: 
+#        Jacobian matrix
 
     function compute_jacobian(u_eq, p, system)
         p_values = collect(values(p))
@@ -77,149 +56,138 @@ module fn
     end
 
 
-
-    function Check(ssR, soR, rtol)
-        if isnan(ssR) || isnan(soR) || (abs(ssR) - abs(soR)) > 1e-4
-            rtol *= 1e-3
-            if(rtol < 1e-24)
-                println("ERROR: Check NF system (reltol=",rtol,").")
-                #println(vcat(pert.p,i,[p[eval(Meta.parse(string(":",i)))] for i in syst.sys.ps],mm.outFB(ssR),mm.outNF(soR)))
-                if(abs(ssR - soR)/ssR > 0.01)
-                    ssR, soR = Restart(ssR, soR)
-                    println("Error too large. SS results excluded!")
-                end
-            end
-            return ssR, soR, rtol, "Insufficient"
-        else
-            return ssR, soR, rtol, "Sufficient"
-        end
-    end;
-
-
-    function solver(type, p, u0, mm,  model, pert)
-        if type == "fast"
-            SS = fn.find_equilibrium(p, u0, model)
-            FB = mm.outFB_fast(SS)
-        else
-            SS = fn.solve_to_steady_state(model, u0, p, pert.tspan)
-            FB = mm.outFB_slow(SS)
-        end
-        return SS, FB
-    end
-
-    # Evaluate CoRa
-    # p -- System parameters
-    # u0 -- Initial conditions
-    # mm -- Model structure with functions for feedback and no feedback systems
-    # pert -- Perturbation structure
-    # Returns: 
-    #    CoRa value, 
-    #    steady state of controlled system, 
-    #    steady state of controlled system before perturbation
+# --- Evaluate CoRa ---
+#     p ----- System parameters
+#     u0 ---- Initial conditions
+#     mm ---- Models 
+#     pert -- Perturbation details
+#     Returns: 
+#        CoRa value, 
+#        steady state of the system, 
+#        steady state of the controlled variable,
+#        type of error (0=no error, 1=could not find positive SS, 2=oscillations, 3=other errors)
 
     function evalCoRa(p, u0, mm, pert)
         copy_p = copy(p)
+        error = 0
 
-        # Solve Feedback system
-        SS, FB = solver(pert.solver, p, u0, mm, mm.FB, pert)
-        println("FB = ", FB)
-        # Check for positive solution
-        if any(x -> x < 0, SS)
-            println("negative values in SS")
-            CoRa  = 3
-            SS_controled = NaN
-            #=
-            try
-                SS, FB = solver("slow", copy_p, SS, mm, mm.FB, pert)
-                if any(x -> x < 0, SS)
-                    println("still negative values in SS")
-                    CoRa = 3  #mark other type of erros
-                    SS_controled = NaN
-                else
-                    CoRa = 2  #mark other type of erros
-                    SS_controled = NaN
-                end
-            catch e
-                println("error with slow solver", e)
-                CoRa = 3  #mark other type of erros
-                SS_controled = NaN
+    # Solve Feedback system
+        SS = fn.find_equilibrium(p, u0, mm.FB)
+        FB = mm.out_FB(SS)  
+
+    # If negative values, try new initial conditions
+        i = 1
+        while any(x -> x < 0, SS)
+            println("negative values in SS, trying new initial conditions")
+            u_ = length(u0)
+            u_ = fill(10.0^i, u_)
+
+            SS = fn.find_equilibrium(p, u_, mm.FB)
+            FB = mm.out_FB(SS)
+            i += 1
+
+            if i > 5
+                println("could not find positive SS")
+                error = 1
+                CoRa  = NaN
+                FB   = NaN
+                break
             end
-            =#
-        else
-            p = copy(copy_p)
-            # Calculate new parameters for no feedback system
-            mm.localNF(p,SS)
+        end
 
-            # Solve NF system
+    # Calculate CoRa only if no errors
+        if error == 0   
+        # Solve NF system    
+            mm.localNF(p,SS)      # Adjust parameters for no feedback system
+            SS_nFB = fn.find_equilibrium(p, SS, mm.nFB)
+            nFB = mm.out_FB(SS_nFB)
 
-            SS_nFB, nFB = solver(pert.solver, p, SS, mm, mm.nFB, pert)
-
-            println("nFB = ", nFB)
-
-            if (abs(FB - nFB)/ FB) < 0.0001
+        # If relative difference between FB and nFB is less than 0.0001, proceed to perturbation   
+            if (abs(FB - nFB)/ FB) < 0.0001               
+            # perturbation to FB
                 p = copy(copy_p)
                 p[pert.p] = p[pert.p]*pert.d
-                
-                SS_FBp, FB_p = solver(pert.solver, p, SS, mm, mm.FB, pert)
+                SS_FBp = fn.find_equilibrium(p, SS, mm.FB)
+                FB_p = mm.out_FB(SS_FBp)
 
+            # perturbation to nFB    
                 p = copy(copy_p)
                 p[pert.p] = p[pert.p]*pert.d
                 mm.localNF(p,SS)
+                SS_nFBp = fn.find_equilibrium(p, SS, mm.nFB)
+                nFB_p = mm.out_FB(SS_nFBp)
 
-                SS_nFBp, nFB_p = solver(pert.solver, p, SS, mm, mm.nFB, pert)
+            # Calculate CoRa
+                CoRa = log10(FB_p/FB) / log10(nFB_p/nFB)
 
-                if (FB_p <= 0) || (FB<=0) || (nFB_p<=0) || (nFB<=0)
-                    println("error en uno de estos:", FB, FB_p, nFB_p, nFB)
-                    CoRa  = 3
-                    SS_controled = NaN
-                else
-                    CoRa = log10(FB_p/FB) / log10(nFB_p/nFB)
-                    println("CoRa = ", CoRa)
-                    SS_controled = FB
-                end
+        # If not, check for oscillations or other errors
             else
                 println("FB and nFB not equal, CoRa not defined")
                 J = fn.compute_jacobian(SS, p, mm.FB)
-                eigenvalues = eigvals(J)  # Calcular autovalores
-                #has_oscilations = any(imag(l) != 0 && real(l) >= 0 for l in eigenvalues) # Eigenvalues complejos con parte real positiva
-                has_oscilations = any(imag(l) != 0  for l in eigenvalues) # Eigenvalues complejos con parte real positiva
+                eigenvalues = eigvals(J)  
+            # Complex eigenvalues with positive real part indicate oscillations
+                has_oscilations = any(imag(l) != 0 && real(l) >= 0 for l in eigenvalues) 
 
                 if has_oscilations == true
-                    CoRa = 2  
-                    SS_controled = NaN 
-                    println("oscila")
+                    CoRa = NaN  
+                    FB = NaN
+                    error = 2
+                    println("The system has oscillations")
                 else
-                    println("intentando con otro solver")  # Todo lo demás
-                    #SS, FB = solver("slow", copy_p, SS, mm, mm.FB, pert)
-                    #SS_nFB, nFB = solver("slow", p, SS, mm, mm.nFB, pert)
-                    #println(SS, "\n", SS_nFB)
-
-                    #SS, FB = solver("slow", copy_p, SS_nFB, mm, mm.FB, pert)
-                    #println(SS)
-                    #println((abs(FB - nFB)/ FB) < 0.0001)
-                    CoRa = 3  #mark other type of erros
-                    SS_controled = NaN
+                    println("Unknown error")  
+                    CoRa = NaN 
+                    FB = NaN
+                    error = 3
                 end     
-
             end 
         end
-        return CoRa, SS[:, end], SS_controled
+        return CoRa, SS[:, end], FB, error
     end
+
+
+
+# --- Generate CoRa curve ---
+#     p ----- System parameters
+#     u0 ---- Initial conditions
+#     mm ---- Models
+#     pert -- Perturbation details
+#     Returns:
+#        CoRa curve,
+#        steady states,
+#        final steady state to use as initial condition in next run
 
     function CoRacurve(p, u0, mm, pert)
         ran = 10 .^ range(pert.r[1], pert.r[2], length=pert.coras)
         curve = zeros(length(ran))
         SSs = zeros(length(ran))
+        errors = zeros(length(ran))
+    # Iterate over perturbation range
         for j in 1:length(ran)
             p[pert.c] = ran[j]
-            CoRa_r = evalCoRa(p, u0, mm, pert)
-            curve[j] = CoRa_r[1]
-            SSs[j] = CoRa_r[3]
-            u0 =  CoRa_r[2]
+            CoRa = evalCoRa(p, u0, mm, pert)
+            curve[j] = CoRa[1]
+            u0 =  CoRa[2]
+            SSs[j] = CoRa[3]
+            errors[j] = CoRa[4]
         end  
-        return curve, SSs, u0
+        return curve, SSs, u0, errors
     end
 
+
+
+# --- Calculate metrics of CoRa curve ---
+#    curve -- CoRa curve
+#    SSs ---- steady states of controlled variable
+#    pert --- Perturbation details
+#    Returns:
+#       robustness (fraction of points with CoRa<=eps),
+#       minRange (minimum rho with CoRa<=eps),
+#       maxRange (maximum rho with CoRa<=eps),
+#       min(CoRa),
+#       optimalRho (rho with min(CoRa)),
+#       oscilations (number of points with oscillations),
+#       other_errors (number of points with other errors),
+#       steady_state (mean steady state of controlled variable for points with CoRa<=eps)
 
     function metrics(curve, SSs, pert)
         r = 10 .^ range(pert.r[1], pert.r[2], length=pert.coras)
@@ -450,3 +418,62 @@ module fn
     end
 
 end
+
+
+    #=
+    #--- Solve for equilibrium (slow) ---
+    # p ------ Set of parameters
+    # u0 ----- Initial conditions
+    # system - set of ODEs
+    # Returns: vector with equilibrium points 
+
+    function solve_to_steady_state(p, u0, system, u0, p, tspan)
+        p_values = collect(values(p))
+        prob = ODEProblem(system!, u0, tspan, p_values)
+        sol = solve(prob, Rodas5(), reltol=1e-8, abstol=1e-8)  # Usar un solver robusto
+        # Verificar si el sistema alcanzó el estado estacionario
+        du = similar(u0)
+        system!(du, sol.u[end], p_values, sol.t[end])
+        if maximum(abs.(du)) < 1e-6
+            #println("El sistema alcanzó el estado estacionario.")
+            return sol.u[end]
+        else
+            println("no ss")
+            return 0.0
+        end
+    end
+
+
+
+
+        function Check(ssR, soR, rtol)
+        if isnan(ssR) || isnan(soR) || (abs(ssR) - abs(soR)) > 1e-4
+            rtol *= 1e-3
+            if(rtol < 1e-24)
+                println("ERROR: Check NF system (reltol=",rtol,").")
+                #println(vcat(pert.p,i,[p[eval(Meta.parse(string(":",i)))] for i in syst.sys.ps],mm.outFB(ssR),mm.outNF(soR)))
+                if(abs(ssR - soR)/ssR > 0.01)
+                    ssR, soR = Restart(ssR, soR)
+                    println("Error too large. SS results excluded!")
+                end
+            end
+            return ssR, soR, rtol, "Insufficient"
+        else
+            return ssR, soR, rtol, "Sufficient"
+        end
+    end;
+
+
+
+        
+    function solver(type, p, u0, mm,  model, pert)
+        if type == "fast"
+            SS = fn.find_equilibrium(p, u0, model)
+            FB = mm.outFB_fast(SS)
+        else
+            SS = fn.solve_to_steady_state(model, u0, p, pert.tspan)
+            FB = mm.outFB_slow(SS)
+        end
+        return SS, FB
+    end
+    =#
