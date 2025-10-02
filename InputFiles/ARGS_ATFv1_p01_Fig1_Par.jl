@@ -14,3 +14,5 @@ p = OrderedDict(
     :eM  => 0.5,       
     :mUs => NaN
 )
+
+u0 = [0.0, 0.0, 0.0, 0.0]     # Initial conditions for the ODE system

@@ -31,22 +31,17 @@ module mm
     end
 
 	# Define system's output (total Y):
-	function outFB(SS)
+	function out_FB(SS)
         return SS[1]
 	end
-
 
 	function out_nFB(SS)
 		return SS[1]
 	end
 
-
-
 	# Define locally analogous system:
 	function localNF(p, SS)
-		p[:mUs] = p[:mU] * SS[1];
-	end;
+		p[:mUs] = p[:mU] * SS[1]
+	end
 
-	# dU + dC = (mU * Y) - ((g + gU) * (U + C)) - (eM * C)
-	# dW + dC =    mW    - ((g + gW) * (W + C)) - (eM * C)
 end

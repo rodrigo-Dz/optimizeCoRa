@@ -35,25 +35,17 @@ module mm
     end
 
 	# Define system's output (total Y):
-	function outFB_fast(SS)
+	function out_FB(SS)
         return SS[1]
 	end
 
-    function out_FB_slow(SS)
-        return SS.u[end]       
-    end
-
-	function out_nFB_fast(SS)
+	function out_nFB(SS)
 		return SS[1];
 	end
-
-    function out_nFB_slow(SS)
-        return SS.u[end]  
-    end
 
 	# Define locally analogous system:
 	function localNF(p, SS)
 		p[:mUs] = p[:mU] * SS[1];
-	end;
+	end
 
 end
