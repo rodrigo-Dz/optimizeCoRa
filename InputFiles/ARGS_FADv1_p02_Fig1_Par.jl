@@ -1,6 +1,5 @@
 using DataStructures
 
-
 # Kinetic parameters
 p = OrderedDict([
     :g   => 0.01,      # Dilution rate (e.g. [0.01,0.24] 1/min)
