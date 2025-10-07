@@ -108,7 +108,6 @@ module fn
         end 
 
     # Solve Feedback system
-        println("Solving F...")
         SS, eq = fn.find_equilibrium(p, u0, mm.FB)
         FB = mm.out_FB(SS)  
 
@@ -131,10 +130,15 @@ module fn
                 FB   = NaN
                 break
             end
+
+            if all(x -> x >= 0, SS)
+                println("Found positive SS: ", SS)
+            end
         end
 
     # If the solver failed, check for oscillations
-        if eq == 0
+        if eq == 0 
+            println("Solver failed, checking for oscillations")
             J = fn.compute_jacobian(SS, p, mm.FB)
             eigenvalues = eigvals(J)  
         # Complex eigenvalues with positive real part indicate oscillations
@@ -155,9 +159,8 @@ module fn
 
     # Calculate CoRa only if no errors
         if error == 0   
+            println("Calculating CoRa")
         # Solve NF system    
-             println("Solving NF...")
-
             mm.localNF(p,SS)      # Adjust parameters for no feedback system
             SS_nFB, _ = fn.find_equilibrium(p, SS, mm.nFB)
             nFB = mm.out_FB(SS_nFB)
@@ -177,8 +180,17 @@ module fn
                 nFB_p = mm.out_FB(SS_nFBp)
 
             # Calculate CoRa
-                CoRa = log10(FB_p/FB) / log10(nFB_p/nFB)
-
+                if FB > 0 && nFB > 0 && FB_p > 0 && nFB_p > 0
+                    println("All steady states positive")
+                    CoRa = log10(FB_p/FB) / log10(nFB_p/nFB)
+                    println("CoRa: ", CoRa)
+                else
+                    println("One of the steady states is non-positive")
+                    CoRa = NaN 
+                    FB = NaN
+                    error = 1    
+                    return CoRa, SS[:, end], FB, error
+                end
         # If not, report error
             else
                 println("Unknown error")  

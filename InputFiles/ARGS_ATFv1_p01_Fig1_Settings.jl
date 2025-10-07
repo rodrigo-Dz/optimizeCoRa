@@ -4,7 +4,7 @@ iARG = (mm = "ATFv1_p01",       # Label for motif file
         ex = "Fig1",            # Label for parameters file
         pp = :mY,		# Label for perturbation type
         ax = :mY,               # Label for condition/environment
-        an = "Curve"		# Label for analysis type (Explore, Optimize, Dynamics, Curve)
+        an = "Optimize"		# Label for analysis type (Explore, Optimize, Dynamics, Curve)
 )
 
 # --- Perturbation details ---
@@ -19,18 +19,18 @@ pert = (p   = iARG.pp,	        # Parameter to be perturbed
 # --- Edit the analysis you want: ---
      
 # Exploration details
-expl  = (pOp  = [:mU,:mW,:eP],	        # Parameters to optimize
+expl  = (pOp  = [:mU,  :mW,  :eP],	        # Parameters to optimize
         pMin = [-3.0, -3.0, -3.0],      # Min (log scale)
-        pMax = [3.0,  3.0,  3.0],       # Max (log scale)   
+        pMax = [ 3.0,  3.0,  3.0],       # Max (log scale)   
         n_points = 2048,                # number of points to evaluate (power of 2 recommended)
         prtD =1)		        # flag for printing full curve 
 
 # Optimization details
-opt  = (pOp  = [:mU, :mW, :eP],	        # Parameters to optimize
-        pMin = [-3.0, -3.0, -3.0],      # Min (log scale)
-        pMax = [3.0, 3.0, 3.0],         # Max (log scale)   
-        iter = 1000,                   # number of points to evaluate (power of 2 recommended)0
-        cov = [0.1, 0.1, 0.1],          # variance for each parameter
+opt  = (pOp  = [:mU,   :mW,  :eP,  :gU,  :gW,  :e0,  :eM],	        # Parameters to optimize
+        pMin = [-3.0, -3.0, -3.0, -3.0, -3.0, -3.0, -3.0],      # Min (log scale)
+        pMax = [ 3.0,  3.0,  3.0,  1.0,  1.0,  1.0,  1.0],         # Max (log scale)   
+        iter = 10000,                   # number of points to evaluate (power of 2 recommended)0
+        cov = [0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1],          # variance for each parameter
         M = 10,                         # mutation step size
         prtD =1,                        # flag for printing full curve
         rand = 1,                       # flag for random initial parameters

@@ -1,10 +1,10 @@
 
 # --- Main arguments ---
-iARG = (mm = "ATFv1_p02",       # Label for motif file
+iARG = (mm = "FADv1_p03",       # Label for motif file
         ex = "Fig1",            # Label for parameters file
         pp = :mY,		# Label for perturbation type
         ax = :mY,               # Label for condition/environment
-        an = "Optimize"		# Label for analysis type (Explore, Optimize, Dynamics, Curve)
+        an = "Explore"		# Label for analysis type (Explore, Optimize, Dynamics, Curve)
 )
 
 # --- Perturbation details ---
@@ -37,8 +37,8 @@ opt  = (pOp  = [:mU, :mW, :eP],	        # Parameters to optimize
         )	
 
 # Dynamics details
-dyn = (tspan = (0.0, 200.0),   # time span for the simulation
+dyn = (tspan = (0.0, 1000.0),   # time span for the simulation
         plot = 1,              # Index of variable to plot 
-        pert_size = 2.0,       # Perturbation size (Delta rho)
-        pert_time = 50.0       # Time of perturbation          
+        pert_size = 2,       # Perturbation size (Delta rho)
+        pert_time = 500.0       # Time of perturbation          
 )
