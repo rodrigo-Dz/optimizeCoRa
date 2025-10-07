@@ -3,39 +3,91 @@ library(plotly)
 library(dplyr)
 library(readr)
 library(scales)
-library(corrplot)
 library(geometry)
-library(viridisLite)  # para escala de colores
+library(viridisLite)  
+library(htmlwidgets)
+library(tidyr)
+library(dplyr)
+library(viridis)
+library(patchwork)
+library(ggplot2)
 
-### EXPLORATION ###
-curves <- read_tsv("./output/OUT_ExplCoRa_ATFv1_p02_Fig1_mY_mY.txt", col_names = TRUE)
 
-cont_colors <- viridis(100)[as.numeric(cut(curves$`proportion<=eps`, breaks = 100))]
-final_colors <- ifelse(curves$oscilations > 0, "purple", cont_colors)
+# ---- Explore ----
+
+curves <- read_tsv("./Output/OUT_ExplCoRa_ATFv1_p02_Fig1_mY_mY.txt", col_names = TRUE)
+
+# set scale [0, 1]
+# curves$robustness[1] = 1
+
+cont_colors <- viridis(100)[as.numeric(cut(curves$robustness, breaks = 100))]
+final_colors <- ifelse(curves$oscilations != 0, "purple", cont_colors)
 curves$color <- final_colors
 
-plot_ly(curves, x = ~mU, y = ~mW, z = ~eP, 
-        marker = list(size = 8, color = curves$color),
-        type = "scatter3d", mode = "markers") %>%
+curves <- curves %>% filter(negative_sol < 5 & other_errors < 5)
+
+p <- plot_ly(curves, x = ~mU, y = ~mW, z = ~eP, 
+             marker = list(
+               size = 10, 
+               color = ~robustness,  # Usar robustness para la barra de color
+               colorscale = "Viridis",
+               colorbar = list(title = "Robustness"),
+               showscale = TRUE,
+               # Mapear los colores personalizados
+               cmin = min(curves$robustness),
+               cmax = max(curves$robustness)
+             ),
+             type = "scatter3d", 
+             mode = "markers") %>%
+  # Sobrescribir colores con tu esquema personalizado
+  add_markers(color = ~I(final_colors)) %>%
   layout(scene = list(
     xaxis = list(title = "mU", type = "log"),
     yaxis = list(title = "mW", type = "log"),
     zaxis = list(title = "eP", type = "log")
   ))
 
-
-#### OPTIMIZATION ###
-curves <- read_tsv("./output/OUT_OptCoRa_ATFv1_Fig1_mY_mY.txt", col_names = TRUE)
-
-p <- plot_ly(curves, x = ~mU, y = ~mW, z = ~eP, 
-             marker = list(size = 5),
-             type = "scatter3d", mode = "markers",
-             color = curves$`proportion<=eps`) %>%  # I() para indicar que ya es un color definido
-  layout(scene = list(
-    xaxis = list(title = "mU", type = "log", range = c(-3, 3)),
-    yaxis = list(title = "mW", type = "log", range = c(-3, 3)),
-    zaxis = list(title = "eP", type = "log", range = c(-3, 3)),
-    aspectmode = "manual",   # Mantener proporciones
-    aspectratio = list(x = 1, y = 1, z = 1)  # Proporciones iguales
-  ))
 p
+
+
+
+# ---- Optimize ----
+
+optimization_history <- read_tsv("./Output/OUT_OptCoRa_ATFv1_p01_Fig1_mY_mY.txt", col_names = TRUE)
+
+p <- plot_ly(optimization_history, x = ~mU, y = ~mW, z = ~eP, 
+             marker = list(
+               size = 10, 
+               color = ~robustness,  # Usar robustness para la barra de color
+               colorscale = "Viridis"
+             ),
+             type = "scatter3d", 
+             mode = "markers") %>%
+  layout(scene = list(
+    xaxis = list(title = "mU", type = "log"),
+    yaxis = list(title = "mW", type = "log"),
+    zaxis = list(title = "eP", type = "log")
+  ))
+
+p
+
+
+optimization_history[2:7] = log10(optimization_history[2:7])
+
+
+
+plot_list <- list()
+param_combinations <- combn(names(optimization_history)[2:7], 2, simplify = FALSE)
+
+for(i in seq_along(param_combinations)) {
+  plot_list[[i]] <- ggplot(optimization_history) +
+    geom_point(aes(x = .data[[param_combinations[[i]][1]]], 
+                   y = .data[[param_combinations[[i]][2]]], 
+                   color = robustness)) +
+    scale_color_viridis_c() +
+    guides(color = "none") +
+    xlim(-3, 3) +  
+    ylim(-3, 3)    
+}
+
+wrap_plots(plot_list)
