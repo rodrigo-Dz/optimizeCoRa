@@ -53,13 +53,21 @@ p
 
 # ---- Optimize ----
 
-optimization_history <- read_tsv("./Output/OUT_OptCoRa_ATFv1_p01_Fig1_mY_mY.txt", col_names = TRUE)
+optimization_history <- read_tsv("/home/rodrigo/Desktop/optimizeCoRa_29sep/optimizeCoRa/Output/OUT_OptCoRa_ATFv1_p01_Fig1_mY_mY.txt", col_names = TRUE)
+
+hist(optimization_history$robustness)
+hist(optimization_history$`min(CoRA)`)
 
 p <- plot_ly(optimization_history, x = ~mU, y = ~mW, z = ~eP, 
              marker = list(
                size = 10, 
                color = ~robustness,  # Usar robustness para la barra de color
-               colorscale = "Viridis"
+               colorscale = "Viridis",
+               colorbar = list(title = "Robustness"),
+               showscale = TRUE,
+               # Mapear los colores personalizados
+               cmin = min(optimization_history$robustness),
+               cmax = max(optimization_history$robustness)
              ),
              type = "scatter3d", 
              mode = "markers") %>%
@@ -72,22 +80,36 @@ p <- plot_ly(optimization_history, x = ~mU, y = ~mW, z = ~eP,
 p
 
 
-optimization_history[2:7] = log10(optimization_history[2:7])
+optimization_history[2:8] <- log10(optimization_history[2:8])
 
-
-
-plot_list <- list()
-param_combinations <- combn(names(optimization_history)[2:7], 2, simplify = FALSE)
+param_combinations <- combn(names(optimization_history)[2:8], 2, simplify = FALSE)
 
 for(i in seq_along(param_combinations)) {
-  plot_list[[i]] <- ggplot(optimization_history) +
+  # Crear el gráfico
+  p <- ggplot(optimization_history) +
     geom_point(aes(x = .data[[param_combinations[[i]][1]]], 
                    y = .data[[param_combinations[[i]][2]]], 
                    color = robustness)) +
     scale_color_viridis_c() +
     guides(color = "none") +
     xlim(-3, 3) +  
-    ylim(-3, 3)    
+    ylim(-3, 3) +
+    labs(title = paste(param_combinations[[i]][1], "vs", param_combinations[[i]][2]))
+  
+  # Crear nombre del archivo
+  file_name <- paste0("/home/rodrigo/Desktop/optimizeCoRa_29sep/optimizeCoRa/Output/plot_", param_combinations[[i]][1], "_vs_", 
+                      param_combinations[[i]][2], ".png")
+  
+  # Guardar el gráfico
+  ggsave(filename = file_name, 
+         plot = p, 
+         width = 6, 
+         height = 5, 
+         dpi = 300)
+  
+  # Mensaje de confirmación
+  cat("Guardado:", file_name, "\n")
 }
 
-wrap_plots(plot_list)
+
+

@@ -159,7 +159,6 @@ module fn
 
     # Calculate CoRa only if no errors
         if error == 0   
-            println("Calculating CoRa")
         # Solve NF system    
             mm.localNF(p,SS)      # Adjust parameters for no feedback system
             SS_nFB, _ = fn.find_equilibrium(p, SS, mm.nFB)
@@ -181,9 +180,7 @@ module fn
 
             # Calculate CoRa
                 if FB > 0 && nFB > 0 && FB_p > 0 && nFB_p > 0
-                    println("All steady states positive")
                     CoRa = log10(FB_p/FB) / log10(nFB_p/nFB)
-                    println("CoRa: ", CoRa)
                 else
                     println("One of the steady states is non-positive")
                     CoRa = NaN 
@@ -259,7 +256,10 @@ module fn
 		j = findall(i);                        # values of rho less than eps
 		
         if isempty(j)
-			return [0, NaN, NaN, NaN, NaN, neg, os, e, NaN]
+            x = copy(curve);
+            x[x .=== NaN] .= Inf;                  # replace NaN with Inf for min calculation
+
+			return [0, NaN, NaN, minimum(x), r[argmin(x)], neg, os, e, NaN]
         else
             x = copy(curve);
             x[x .=== NaN] .= Inf;                  # replace NaN with Inf for min calculation
@@ -362,9 +362,14 @@ module fn
 
         # Initial metrics
 			op0 = log10(m0[3]/m0[2])    # Property to optimize, range with CoRa<=eps 
+            prop0 = m0[1]
 			mi0 = m0[4]                 # Minimum CoRa
             r0 = zeros(length(opt.pOp)) 
 
+            if mi0 == NaN
+                println("Negative solutions, try to start with anther parametes")
+                return NaN
+            end
             if m0[6] != 0 
                 println("Negative solutions, try to start with anther parametes")
                 return NaN
@@ -409,7 +414,11 @@ module fn
                 m1 = metrics(curve1[1], curve1[2], curve1[3], pert)    # Calculate metrics of curve
 
                 op1 = log10(m1[3]/m1[2])  
-                mi1 = m1[4];  
+                prop1 = m1[1]
+                mi1 = m1[4]
+                if mi1 == NaN 
+                    println("coso Raro")
+                end
 
             # C1 = minimize min(CoRa) when op0 and op1 = NaN
             # NOTE: As mi0,mi1=[0,1], correct exponential with the expected variance of ~U(0,1)
@@ -417,13 +426,18 @@ module fn
                 xiP = (mi1 ^ 2) / (2 * 0.083)
 				c1 = isnan(op0+op1) && (rand() < exp((xiC - xiP)))
 
-            # C2 = maximize range when op0 and op1 != NaN 
+            # C2 = maximize range using the range
 			# NOTE: As op0,op1=[0,rrO], but still correct exponential with the expected variance of ~U(0,1)
 			#       !! ~U(0,1)*(rrO^2) variance resulted in very noisy runs...
-					rrO = pert.r[2] - pert.r[1]
-					xiC = (rrO - op0) / (2 * 0.083)
-					xiP = (rrO - op1) / (2 * 0.083)
+				rrO = pert.r[2] - pert.r[1]
+            	xiC = (rrO - op0) / (2 * 0.083)
+            	xiP = (rrO - op1) / (2 * 0.083)
 				c2 = rand() < exp((xiC - xiP))
+
+            # C2 = maximize range using the proportion; we used variance of 0.01  wich gives a good balance between exploration and explotation
+            #   xiC = ((prop0 - 1)^2) / (2 * 0.01)
+            #   xiP = ((prop1 - 1)^2) / (2 * 0.01)
+			#	c2 = rand() < exp((xiC - xiP))
 
             # C3 = no negative solutions
                 c3 = m1[6] == 0
@@ -435,6 +449,7 @@ module fn
             # If conditions met to accept new parameter values
 				if((c1 || c2 ) && c3 && c4 && c5) 
 					op0 = op1
+                    prop0 = prop1
 					mi0 = mi1
                     best_rob = m1[1]
                     best_curve = curve1[1]
