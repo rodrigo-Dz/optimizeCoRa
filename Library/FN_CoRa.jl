@@ -36,8 +36,8 @@ module fn
             system(du, u, par, 0.0)
             F .= du
             return F
-        end
-        
+        end            
+  
     # Primary method: Newton's method
         result = nlsolve(equilibrium_condition, u0, 
                         method=:newton,
@@ -118,9 +118,15 @@ module fn
             u_ = length(u0)
             u_ = fill(10.0^i, u_)
 
-            SS, eq = fn.find_equilibrium(p, u_, mm.FB)
-            FB = mm.out_FB(SS)  
+            try
+                SS, eq = fn.find_equilibrium(p, u_, mm.FB)
+            catch e
+                error = 3
+                CoRa = NaN
+                FB = NaN
+            end
 
+            FB = mm.out_FB(SS)  
             i += 1
 
             if i > 5
@@ -342,7 +348,7 @@ module fn
 
         open(string("./Output/OUT_OptCoRa_",iARG.mm,"_",iARG.ex,"_",iARG.pp,"_",iARG.ax,".txt"), "w") do io
             if (opt.prtD==1)
-                    writedlm(io, [vcat("Iteration", [string(param) for param in opt.pOp],"robustness",string("|CoRa<=",pert.eps,"|"),"min(CoRA)", ran)], '\t')
+                    writedlm(io, [vcat("Iteration", [string(param) for param in opt.pOp],"robustness",string("|CoRa<=",pert.eps,"|"),"min(CoRA)", "SS", ran)], '\t')
             else
                     writedlm(io, [vcat("Iteration", [string(param) for param in opt.pOp],"robustness",string("|CoRa<=",pert.eps,"|"),"min(CoRa)")], '\t')
             end
@@ -361,11 +367,12 @@ module fn
             best_curve = curve0[1]       # Best curve
 
         # Initial metrics
+
 			op0 = log10(m0[3]/m0[2])    # Property to optimize, range with CoRa<=eps 
             prop0 = m0[1]
 			mi0 = m0[4]                 # Minimum CoRa
             r0 = zeros(length(opt.pOp)) 
-
+            s0 = m0[9]
             if mi0 == NaN
                 println("Negative solutions, try to start with anther parametes")
                 return NaN
@@ -384,7 +391,7 @@ module fn
             end
 
             if (opt.prtD==1)	
-                writedlm(io, [vcat(0, [p[i] for i in opt.pOp], m0[1], op0, mi0, curve0)],'\t')
+                writedlm(io, [vcat(0, [p[i] for i in opt.pOp], m0[1], op0, mi0, s0, curve0)],'\t')
             else			
                 writedlm(io, [vcat(0, [p[i] for i in opt.pOp], m0[1], op0, mi0)],'\t')
             end
@@ -412,13 +419,10 @@ module fn
             # Calculate new CoRa curve
                 curve1 = CoRacurve(p, u0, mm, pert)
                 m1 = metrics(curve1[1], curve1[2], curve1[3], pert)    # Calculate metrics of curve
-
                 op1 = log10(m1[3]/m1[2])  
                 prop1 = m1[1]
                 mi1 = m1[4]
-                if mi1 == NaN 
-                    println("coso Raro")
-                end
+                s1 = m1[9]
 
             # C1 = minimize min(CoRa) when op0 and op1 = NaN
             # NOTE: As mi0,mi1=[0,1], correct exponential with the expected variance of ~U(0,1)
@@ -453,6 +457,7 @@ module fn
 					mi0 = mi1
                     best_rob = m1[1]
                     best_curve = curve1[1]
+                    s0 = s1
                     println("ok")
 				else
 				# If not, revert to previous parameter values
@@ -464,7 +469,7 @@ module fn
 
             # Save results of each iteration
                 if (opt.prtD==1)
-                    writedlm(io, [vcat(i,[p[x] for x in opt.pOp],best_rob, op0, mi0, best_curve)],'\t')
+                    writedlm(io, [vcat(i,[p[x] for x in opt.pOp],best_rob, op0, mi0, s0, best_curve)],'\t')
                 else			
                     writedlm(io, [vcat(i,[p[x] for x in opt.pOp],best_rob, op0, mi0)],'\t')
                 end

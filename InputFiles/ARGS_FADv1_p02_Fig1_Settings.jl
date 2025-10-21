@@ -4,7 +4,7 @@ iARG = (mm = "FADv1_p02",       # Label for motif file
         ex = "Fig1",            # Label for parameters file
         pp = :mY,		# Label for perturbation type
         ax = :mY,               # Label for condition/environment
-        an = "Explore"		# Label for analysis type (Explore, Optimize, Dynamics, Curve)
+        an = "Optimize"		# Label for analysis type (Explore, Optimize, Dynamics, Curve)
 )
 
 # --- Perturbation details ---
@@ -29,7 +29,7 @@ expl  = (pOp  = [:mU,:mW,:eP],	        # Parameters to optimize
 opt  = (pOp  = [:mU, :mW, :eP],	        # Parameters to optimize
         pMin = [-3.0, -3.0, -3.0],      # Min (log scale)
         pMax = [3.0, 3.0, 3.0],         # Max (log scale)   
-        iter = 1000,                   # number of points to evaluate (power of 2 recommended)0
+        iter = 10000,                   # number of points to evaluate (power of 2 recommended)0
         cov = [0.1, 0.1, 0.1],          # variance for each parameter
         M = 10,                         # mutation step size
         prtD =1,                        # flag for printing full curve

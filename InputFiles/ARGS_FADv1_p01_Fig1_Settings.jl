@@ -4,7 +4,7 @@ iARG = (mm = "FADv1_p01",       # Label for motif file
         ex = "Fig1",            # Label for parameters file
         pp = :mY,		# Label for perturbation type
         ax = :mY,               # Label for condition/environment
-        an = "Explore"		# Label for analysis type (Explore, Optimize, Dynamics, Curve)
+        an = "Optimize"		# Label for analysis type (Explore, Optimize, Dynamics, Curve)
 )
 
 # --- Perturbation details ---

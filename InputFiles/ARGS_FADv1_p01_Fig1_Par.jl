@@ -2,15 +2,15 @@ using DataStructures
 
 # Diccionario ordenado
 p = OrderedDict(
-    :g   => 0.0001,    
+    :g   => 0.01,    
     :mY  => 0.125,     
-    :gY  => 0.1,       
-    :mU  => 0.01,      
-    :gU  => 0.0001,    
-    :mW  => 100,       
+    :gY  => 1,       
+    :mU  => 0.125,      
+    :gU  => 0.05,    
+    :mW  => 0.1,       
     :gW  => 0.0001,    
     :e0  => 0.0001,    
-    :eP  => 0.001,     
+    :eP  => 0.0375,     
     :eM  => 0.5,       
     :mUs => NaN
 )
