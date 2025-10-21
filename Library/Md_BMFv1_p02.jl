@@ -10,28 +10,32 @@ module mm
 
     # ODE system with feedback
     function FB(du, u, p, t)
-        Y, A, B, C, U, Us = u
-        g, mY, gY, mA, mB, mU, e0, eP, bA, bI, mBs = p
+        Y, A, B, C, U, Us, Y0, Y1 = u
+        g, mY, gY, mA, mB, mU, e0, eP, bA, bI, m0, m1, k1, mBs = p
     
-		du[1]  = (mY * U) - ((g + gY) * Y)
+		du[1]  = (mY * Y1) - ((g + gY) * Y)
 		du[2]  =  mA      - (g * A) - (eP * A * B) + (e0 * C) - (bA * A * Us)
 		du[3]  = (mB * Y) - (g * B) - (eP * A * B) + (e0 * C) - (bI * B * U)
 		du[4]  =          - (g * C) + (eP * A * B) - (e0 * C) + (bA * A * Us)
 		du[5]  =  mU      - (g * U) + (bA * A * Us) - (bI * B * U)
 		du[6] =          - (g * Us) - (bA * A * Us) + (bI * B * U)
+		du[7] = (m0 * U)              - ((g + gY) * Y0)
+		du[8] = (m1 * (k1/(Y0 + k1))) - ((g + gY) * Y1)
     end
 
     # ODE system without feedback
     function nFB(du, u, p, t)
-        Y, A, B, C, U, Us = u
-        g, mY, gY, mA, mB, mU, e0, eP, bA, bI, mBs = p
+        Y, A, B, C, U, Us, Y0, Y1 = u
+        g, mY, gY, mA, mB, mU, e0, eP, bA, bI, m0, m1, k1, mBs = p
     
-		du[1]  = (mY * U) - ((g + gY) * Y)
+		du[1]  = (mY * Y1) - ((g + gY) * Y)
 		du[2]  =  mA      - (g * A) - (eP * A * B) + (e0 * C) - (bA * A * Us)
 		du[3]  = (mBs)    - (g * B) - (eP * A * B) + (e0 * C) - (bI * B * U)
 		du[4]  =          - (g * C) + (eP * A * B) - (e0 * C) + (bA * A * Us)
 		du[5]  =  mU      - (g * U) + (bA * A * Us) - (bI * B * U)
 		du[6] =          - (g * Us) - (bA * A * Us) + (bI * B * U)
+		du[7] = (m0 * U)              - ((g + gY) * Y0)
+		du[8] = (m1 * (k1/(Y0 + k1))) - ((g + gY) * Y1)
     end
     
 

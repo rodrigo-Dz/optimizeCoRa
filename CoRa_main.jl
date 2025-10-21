@@ -15,7 +15,7 @@ using DelimitedFiles
 using Statistics
 
 # --- Settings ---
-Settings_file = "ARGS_FADv1_p01_Fig2_Settings.jl"
+Settings_file = "ARGS_BMFv1_p02_Fig1_Settings.jl"
 include(string("./InputFiles/", Settings_file))
 
 # --- Main functions ---

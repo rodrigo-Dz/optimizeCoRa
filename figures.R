@@ -133,13 +133,13 @@ for (i in seq_along(param_combinations)) {
 
 # ---- Optimize ----
 
-optimization_history <- read_tsv("./Output/OUT_OptCoRa_ATFv1_p01_Fig2_mY_mY.txt", col_names = TRUE)
+optimization_history <- read_tsv("./Output/OUT_OptCoRa_BMFv1_p02_Fig1_mY_mY.txt", col_names = TRUE)
 
 hist(optimization_history$robustness)
 hist(optimization_history$`min(CoRA)`)
 hist(optimization_history$mU, xlim=c(-3,3))
 
-p <- plot_ly(optimization_history, x = ~mU, y = ~mW, z = ~eP, 
+p <- plot_ly(optimization_history, x = ~mA, y = ~mB, z = ~eP, 
              marker = list(
                size = 10, 
                color = ~robustness,  # Usar robustness para la barra de color

@@ -29,7 +29,6 @@ module fn
 
     function find_equilibrium(p, u0, system; max_iters=1000, ftol=1e-12, xtol=1e-12)
         par = collect(values(p))
-        
     # Define the equilibrium condition function   
         function equilibrium_condition(F, u)
             du = similar(u)
